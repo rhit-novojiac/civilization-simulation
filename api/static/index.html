@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Civ Sim V1 Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.75);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            
+            /* Species Colors */
+            --color-1: #10b981; /* Horned Rabbit: Emerald */
+            --color-2: #ef4444; /* Dire Wolf: Red */
+            --color-3: #a78bfa; /* Slime: Purple */
+            --color-4: #f59e0b; /* Rock Boar: Amber */
+            --color-5: #ec4899; /* Giant Spider: Pink */
+            --color-6: #f97316; /* Sand Scorpion: Orange */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background-image: radial-gradient(circle at 50% 0%, rgba(17, 24, 39, 0.6) 0%, var(--bg-color) 70%);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            color: white;
+            font-weight: 800;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #ffffff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .meta-stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .meta-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .meta-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #38bdf8;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 65px);
+            position: relative;
+        }
+
+        /* Sidebar Glassmorphism */
+        .sidebar {
+            width: 380px;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 5;
+            overflow-y: auto;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .species-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .species-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .species-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: var(--species-color);
+            border-radius: 4px 0 0 4px;
+        }
+
+        .species-card:hover {
+            background: rgba(30, 41, 59, 0.6);
+            border-color: rgba(255, 255, 255, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .species-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .species-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-color);
+        }
+
+        .species-diet {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+        }
+
+        .diet-herbivore { color: #34d399; background: rgba(52, 211, 153, 0.1); }
+        .diet-carnivore { color: #f87171; background: rgba(248, 113, 113, 0.1); }
+        .diet-scavenger { color: #a78bfa; background: rgba(167, 139, 250, 0.1); }
+
+        .species-body {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .species-stat-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .species-stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-lbl {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .stat-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .pop-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .pop-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.3rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .pop-delta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .delta-positive { color: #10b981; }
+        .delta-negative { color: #ef4444; }
+        .delta-neutral { color: var(--text-muted); }
+
+        /* Simulation Canvas Area */
+        .viewport-container {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            background: #030712;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+        }
+
+        .viewport-container:active {
+            cursor: grabbing;
+        }
+
+        canvas {
+            display: block;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            border-radius: 8px;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Hover Tooltip styling */
+        .tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            pointer-events: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 150px;
+        }
+
+        .tooltip-title {
+            font-weight: 700;
+            color: white;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 4px;
+            margin-bottom: 2px;
+        }
+
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .tooltip-lbl {
+            color: var(--text-muted);
+        }
+
+        .tooltip-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+        }
+
+        .hp-bar-bg {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            width: 100%;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .hp-bar-fg {
+            height: 100%;
+            background: #10b981;
+            border-radius: 2px;
+        }
+
+        /* Instructions overlay */
+        .viewport-instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        /* Sparkline container */
+        .chart-container {
+            width: 100%;
+            height: 120px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .sparkline-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 0.65rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-muted);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .legend-overall {
+            font-weight: bold;
+            color: white;
+        }
+
+        /* Speed controller status */
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        /* Checkbox Toggles */
+        .visibility-toggles {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .visibility-toggles label, .global-toggles label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .visibility-toggles label:hover, .global-toggles label:hover {
+            color: var(--text-color);
+        }
+
+        .global-toggles {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .hover-info-label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;}
+        #hover-info {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: var(--text-color);
+            font-size: 0.9rem;
+            font-family: 'JetBrains Mono', monospace;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-container">
+            <span class="logo-badge">CIV SIM V1</span>
+            <h1>Ecology & Monster AI Dashboard</h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span>Simulation Active</span>
+            </div>
+            <div class="meta-stats">
+                <div class="meta-item">
+                    <span class="meta-label">Tick Clock</span>
+                    <span class="meta-val" id="clock-tick">0</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Active Seed</span>
+                    <span class="meta-val" id="world-seed">------</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Sidebar stats -->
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <div class="section-title">Map Controls</div>
+                <div class="global-toggles">
+                    <label><input type="checkbox" id="toggle-all-entities" checked onchange="toggleAllEntities(this.checked)"> All Entities</label>
+                    <label><input type="checkbox" id="toggle-all-dens" checked onchange="toggleAllDens(this.checked)"> All Dens</label>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="section-title">Ecology Overview</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="species-card" style="--species-color: #6366f1; padding: 10px 14px;">
+                        <div class="stat-lbl" style="font-size: 0.7rem;">Total Population</div>
+                        <div class="pop-val" id="overall-pop" style="font-size: 1.6rem; color: #6366f1;">0</div>
+                    </div>
+                    <div class="species-card" style="--species-color: #e2e8f0; padding: 10px 14px;">
+                        <div class="stat-lbl" style="font-size: 0.7rem;">Active Dens</div>
+                        <div class="pop-container">
+                            <span class="pop-val" id="overall-dens" style="font-size: 1.6rem; color: #94a3b8;">0</span>
+                            <span class="pop-delta delta-neutral" id="overall-dens-delta">+0 (50t)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="section-title">Combat Stats</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <div class="species-card" style="--species-color: #ef4444; padding: 10px;">
+                        <div class="stat-lbl" style="font-size: 0.65rem;">Total Kills</div>
+                        <div class="pop-val" id="stat-kills" style="font-size: 1.4rem; color: #ef4444;">0</div>
+                    </div>
+                    <div class="species-card" style="--species-color: #3b82f6; padding: 10px;">
+                        <div class="stat-lbl" style="font-size: 0.65rem;">Total Fleds</div>
+                        <div class="pop-val" id="stat-fleds" style="font-size: 1.4rem; color: #3b82f6;">0</div>
+                    </div>
+                    <div class="species-card" style="--species-color: #eab308; padding: 10px;">
+                        <div class="stat-lbl" style="font-size: 0.65rem;">Total Draws</div>
+                        <div class="pop-val" id="stat-draws" style="font-size: 1.4rem; color: #eab308;">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="flex: 1;">
+                <div class="section-title">Species Population</div>
+                <div class="species-list" id="species-list-container">
+                    <!-- Dynamic Species Cards -->
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="border-bottom: none;">
+                <div class="section-title">Population History (200 Ticks)</div>
+                <div class="chart-container">
+                    <canvas class="sparkline-canvas" id="sparkline-canvas"></canvas>
+                </div>
+                <div class="legend" id="chart-legend">
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas simulation map -->
+        <div class="viewport-container" id="viewport-container">
+            <canvas id="viewport-canvas"></canvas>
+            
+            <div class="tooltip" id="tooltip">
+                <div class="tooltip-title" id="tooltip-title">Species Name</div>
+                <div class="tooltip-row">
+                    <span class="tooltip-lbl">Level:</span>
+                    <span class="tooltip-val" id="tooltip-level">1</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-lbl">HP:</span>
+                    <span class="tooltip-val" id="tooltip-hp">100%</span>
+                </div>
+                <div class="hp-bar-bg"><div class="hp-bar-fg" id="tooltip-hp-bar"></div></div>
+                <div class="tooltip-row" style="margin-top: 4px;">
+                    <span class="tooltip-lbl">Biomass:</span>
+                    <span class="tooltip-val" id="tooltip-biomass">50.0</span>
+                </div>
+                <div class="tooltip-row">
+                    <span class="tooltip-lbl">Position:</span>
+                    <span class="tooltip-val" id="tooltip-pos">0, 0</span>
+                </div>
+            </div>
+
+            <div id="hover-info">
+                <div><span class="hover-info-label">Coord:</span> <span id="hover-coord">-</span></div>
+                <div><span class="hover-info-label">Biome:</span> <span id="hover-biome">-</span></div>
+            </div>
+
+            <div class="viewport-instructions">
+                Drag to PAN &nbsp;•&nbsp; Scroll to ZOOM &nbsp;•&nbsp; Double-Click to RESET VIEW
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State variables
+        let speciesDb = {};
+        let activeMonsters = {};
+        let dens = [];
+        let baseSeed = null;
+        let currentTick = 0;
+
+        // Visibility toggles
+        let hiddenEntities = new Set();
+        let hiddenDens = new Set();
+
+        function toggleAllEntities(isChecked) {
+            const boxes = document.querySelectorAll('.ent-cb');
+            boxes.forEach(b => b.checked = isChecked);
+            for (const spId of Object.keys(speciesDb)) {
+                if (isChecked) hiddenEntities.delete(spId);
+                else hiddenEntities.add(spId);
+            }
+            draw();
+        }
+
+        function toggleAllDens(isChecked) {
+            const boxes = document.querySelectorAll('.den-cb');
+            boxes.forEach(b => b.checked = isChecked);
+            for (const spId of Object.keys(speciesDb)) {
+                if (isChecked) hiddenDens.delete(spId);
+                else hiddenDens.add(spId);
+            }
+            draw();
+        }
+
+        function toggleEntities(id, isChecked) {
+            if (isChecked) hiddenEntities.delete(id.toString());
+            else hiddenEntities.add(id.toString());
+            
+            // Check global
+            const total = Object.keys(speciesDb).length;
+            const hidden = hiddenEntities.size;
+            document.getElementById('toggle-all-entities').checked = (hidden === 0);
+            draw();
+        }
+
+        function toggleDens(id, isChecked) {
+            if (isChecked) hiddenDens.delete(id.toString());
+            else hiddenDens.add(id.toString());
+            
+            // Check global
+            const total = Object.keys(speciesDb).length;
+            const hidden = hiddenDens.size;
+            document.getElementById('toggle-all-dens').checked = (hidden === 0);
+            draw();
+        }
+
+        // Visual panning & zooming settings
+        const canvas = document.getElementById('viewport-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('viewport-container');
+
+        let zoomScale = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let isPanning = false;
+        let startX = 0;
+        let startY = 0;
+
+        // Static biome map image loaded in background
+        const biomeMapImg = new Image();
+        let biomeMapLoaded = false;
+        let offscreenCtx = null;
+        
+        const colorToBiome = [
+            { r: 15, g: 94, b: 156, name: "Ocean" },
+            { r: 160, g: 160, b: 168, name: "Mountain" },
+            { r: 46, g: 120, b: 52, name: "Forest" },
+            { r: 20, g: 105, b: 60, name: "Jungle" },
+            { r: 124, g: 194, b: 80, name: "Plains" },
+            { r: 64, g: 196, b: 255, name: "Freshwater" },
+            { r: 210, g: 180, b: 100, name: "Desert" }
+        ];
+        
+        function getBiomeName(r, g, b) {
+            if (r === 0 && g === 0 && b === 0) return "Unknown";
+            let bestName = "Unknown";
+            let bestDist = Infinity;
+            for(let c of colorToBiome) {
+                let d = Math.pow(c.r-r, 2) + Math.pow(c.g-g, 2) + Math.pow(c.b-b, 2);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestName = c.name;
+                }
+            }
+            return bestName;
+        }
+
+        biomeMapImg.onload = () => {
+            biomeMapLoaded = true;
+            
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = biomeMapImg.naturalWidth;
+            offCanvas.height = biomeMapImg.naturalHeight;
+            offscreenCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+            offscreenCtx.drawImage(biomeMapImg, 0, 0);
+            
+            resizeCanvas();
+            resetView();
+            draw();
+        };
+        biomeMapImg.src = '/api/biome_map.png';
+
+        // Population history for Sparkline
+        const maxHistoryTicks = 200;
+        let rollingHistory = []; // Array of { tick, overall, [species_id]: count }
+        let historyTickMap = new Map(); // Fast lookup tick -> index
+
+        // Population count 50 ticks ago cache for delta
+        // We will store tick -> population count per species
+        let deltaHistory = new Map(); // tick -> { [species_id]: count }
+
+        // Species colors
+        const speciesColors = {
+            '1': '#10b981', // Horned Rabbit
+            '2': '#ef4444', // Dire Wolf
+            '3': '#a78bfa', // Slime
+            '4': '#f59e0b', // Rock Boar
+            '5': '#ec4899', // Giant Spider
+            '6': '#f97316'  // Sand Scorpion
+        };
+
+        // Resize Canvas to fit the screen
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            draw();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Reset Pan and Zoom
+        function resetView() {
+            if (!biomeMapLoaded) return;
+            
+            const scaleX = canvas.width / biomeMapImg.width;
+            const scaleY = canvas.height / biomeMapImg.height;
+            zoomScale = Math.min(scaleX, scaleY, 1.0); // Fit completely inside viewport
+            
+            // Center the image in the canvas
+            panX = (canvas.width - biomeMapImg.width * zoomScale) / 2;
+            panY = (canvas.height - biomeMapImg.height * zoomScale) / 2;
+            draw();
+        }
+
+        // Panning Mouse Event Handlers
+        container.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // Left click only
+            isPanning = true;
+            startX = e.clientX - panX;
+            startY = e.clientY - panY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isPanning) {
+                panX = e.clientX - startX;
+                panY = e.clientY - startY;
+                draw();
+            }
+            handleHover(e);
+        });
+
+        window.addEventListener('mouseup', () => {
+            isPanning = false;
+        });
+
+        container.addEventListener('dblclick', () => {
+            resetView();
+        });
+
+        // Zooming Mouse Wheel Handler
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomIntensity = 0.1;
+            const mouseX = e.clientX - container.getBoundingClientRect().left;
+            const mouseY = e.clientY - container.getBoundingClientRect().top;
+            
+            // World coordinates under mouse before zoom
+            const worldX = (mouseX - panX) / zoomScale;
+            const worldY = (mouseY - panY) / zoomScale;
+            
+            const zoomFactor = e.deltaY < 0 ? (1 + zoomIntensity) : (1 - zoomIntensity);
+            zoomScale = Math.max(0.05, Math.min(20.0, zoomScale * zoomFactor));
+            
+            // Re-adjust pan so mouse stays over the same world coordinate
+            panX = mouseX - worldX * zoomScale;
+            panY = mouseY - worldY * zoomScale;
+            
+            draw();
+        });
+
+        // Convert canvas pixel back to world coordinates
+        function screenToWorld(sx, sy) {
+            const rect = canvas.getBoundingClientRect();
+            const px = sx - rect.left;
+            const py = sy - rect.top;
+            return {
+                x: (px - panX) / zoomScale,
+                y: (py - panY) / zoomScale
+            };
+        }
+
+        // Handle Hover Check for tooltip
+        const tooltip = document.getElementById('tooltip');
+        function handleHover(e) {
+            if (!activeMonsters || isPanning) {
+                tooltip.style.display = 'none';
+                return;
+            }
+            
+            const worldCoords = screenToWorld(e.clientX, e.clientY);
+            
+            const hoverCoordEl = document.getElementById('hover-coord');
+            const hoverBiomeEl = document.getElementById('hover-biome');
+            
+            if (worldCoords.x >= 0 && worldCoords.y >= 0 && 
+                worldCoords.x < biomeMapImg.naturalWidth && worldCoords.y < biomeMapImg.naturalHeight) {
+                const wx = Math.floor(worldCoords.x);
+                const wy = Math.floor(worldCoords.y);
+                hoverCoordEl.innerText = `${wx}, ${wy}`;
+                
+                if (offscreenCtx) {
+                    try {
+                        const pixel = offscreenCtx.getImageData(wx, wy, 1, 1).data;
+                        hoverBiomeEl.innerText = getBiomeName(pixel[0], pixel[1], pixel[2]);
+                    } catch (err) {
+                        hoverBiomeEl.innerText = "-";
+                    }
+                }
+            } else {
+                hoverCoordEl.innerText = "Out of Bounds";
+                hoverBiomeEl.innerText = "-";
+            }
+            
+            let closestEntity = null;
+            let closestDist = 8.0 / zoomScale; // Check within 8 screen pixels scaled to world
+            
+            for (const [id, monster] of Object.entries(activeMonsters)) {
+                // Array: [species_id, x, y, hp_percent, level, current_xp, biomass]
+                const mx = monster[1];
+                const my = monster[2];
+                const dx = worldCoords.x - mx;
+                const dy = worldCoords.y - my;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestEntity = {
+                        id: id,
+                        speciesId: monster[0],
+                        x: mx,
+                        y: my,
+                        hp: monster[3],
+                        level: monster[4],
+                        xp: monster[5],
+                        biomass: monster[6]
+                    };
+                }
+            }
+            
+            if (closestEntity) {
+                const specInfo = speciesDb[closestEntity.speciesId] || { name: `Species ${closestEntity.speciesId}` };
+                document.getElementById('tooltip-title').innerText = specInfo.name;
+                document.getElementById('tooltip-title').style.borderBottomColor = speciesColors[closestEntity.speciesId] || '#ffffff';
+                document.getElementById('tooltip-level').innerText = closestEntity.level;
+                
+                const hpPercent = Math.round(closestEntity.hp * 100);
+                document.getElementById('tooltip-hp').innerText = `${hpPercent}%`;
+                const hpBar = document.getElementById('tooltip-hp-bar');
+                hpBar.style.width = `${hpPercent}%`;
+                hpBar.style.backgroundColor = hpPercent > 50 ? '#10b981' : (hpPercent > 20 ? '#f59e0b' : '#ef4444');
+                
+                document.getElementById('tooltip-biomass').innerText = closestEntity.biomass.toFixed(1);
+                document.getElementById('tooltip-pos').innerText = `${Math.round(closestEntity.x)}, ${Math.round(closestEntity.y)}`;
+                
+                // Position tooltip next to cursor
+                const rect = container.getBoundingClientRect();
+                const tipX = e.clientX - rect.left + 15;
+                const tipY = e.clientY - rect.top + 15;
+                
+                tooltip.style.left = `${tipX}px`;
+                tooltip.style.top = `${tipY}px`;
+                tooltip.style.display = 'flex';
+            } else {
+                tooltip.style.display = 'none';
+            }
+        }
+
+        // Draw Everything
+        function draw() {
+            // Clear screen
+            ctx.fillStyle = '#030712';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(panX, panY);
+            ctx.scale(zoomScale, zoomScale);
+            
+            // 1. Draw Biome Map Image
+            if (biomeMapLoaded) {
+                ctx.drawImage(biomeMapImg, 0, 0);
+            } else {
+                // Placeholder
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, 1000, 1000);
+            }
+            
+            // 2. Draw World Boundaries
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 2 / zoomScale;
+            ctx.strokeRect(0, 0, 1000, 1000);
+            
+            // 3. Draw Dens
+            if (dens && dens.length > 0) {
+                dens.forEach(den => {
+                    // [x, y, species_id, charges]
+                    const dx = den[0];
+                    const dy = den[1];
+                    const spId = den[2];
+                    
+                    if (hiddenDens.has(spId.toString())) return;
+                    
+                    const charges = den[3] !== undefined ? den[3] : 5;
+                    
+                    const color = speciesColors[spId] || '#ffffff';
+                    
+                    ctx.save();
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = color;
+                    
+                    // Draw outer ring
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3 / zoomScale;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, 7, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // Draw charges indicator (small dots inside or around)
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Draw charge sector arcs
+                    ctx.restore();
+                    
+                    // Text indicator for charges
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.font = `bold ${Math.max(8, 9 / zoomScale)}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(charges.toString(), dx, dy - 13);
+                });
+            }
+            
+            // 4. Draw Active Monsters
+            if (activeMonsters) {
+                Object.values(activeMonsters).forEach(monster => {
+                    // Array format: [species_id, x, y, hp_percent, level, current_xp, biomass]
+                    const spId = monster[0];
+                    const mx = monster[1];
+                    const my = monster[2];
+                    const hp = monster[3];
+                    const lvl = monster[4];
+                    
+                    if (hiddenEntities.has(spId.toString())) return;
+                    
+                    const color = speciesColors[spId] || '#ffffff';
+                    
+                    // Monster base dot
+                    ctx.fillStyle = color;
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1 / zoomScale;
+                    
+                    const rad = Math.max(3, 4 / zoomScale);
+                    ctx.beginPath();
+                    ctx.arc(mx, my, rad, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Draw a tiny Level text above powerful monsters if zoomed in
+                    if (lvl > 1 && zoomScale > 1.5) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = `${6 / zoomScale}px 'JetBrains Mono'`;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(`L${lvl}`, mx, my - rad - 2);
+                    }
+                });
+            }
+            
+            ctx.restore();
+        }
+
+        // Fetch Species DB once at load
+        async function fetchSpeciesDb() {
+            try {
+                const res = await fetch('/api/species');
+                speciesDb = await res.json();
+                
+                // Build legend
+                const legend = document.getElementById('chart-legend');
+                legend.innerHTML = '';
+                
+                for (const [id, spec] of Object.entries(speciesDb)) {
+                    const color = speciesColors[id] || '#ffffff';
+                    
+                    // Add legend item
+                    const item = document.createElement('div');
+                    item.className = 'legend-item';
+                    item.innerHTML = `<span class="legend-dot" style="background:${color};"></span><span>${spec.name}</span>`;
+                    legend.appendChild(item);
+                }
+                
+                updateSpeciesListHtml();
+            } catch (err) {
+                console.error("Error fetching species database:", err);
+            }
+        }
+
+        // Render standard species card structure
+        function updateSpeciesListHtml() {
+            const container = document.getElementById('species-list-container');
+            container.innerHTML = '';
+            
+            for (const [id, spec] of Object.entries(speciesDb)) {
+                const color = speciesColors[id] || '#ffffff';
+                const card = document.createElement('div');
+                card.className = 'species-card';
+                card.id = `species-card-${id}`;
+                card.style.setProperty('--species-color', color);
+                
+                const dietClass = `diet-${spec.diet.toLowerCase()}`;
+                
+                card.innerHTML = `
+                    <div class="species-header">
+                        <div style="display:flex; flex-direction:column; width:100%;">
+                            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                                <span class="species-name">${spec.name}</span>
+                                <span class="species-diet ${dietClass}">${spec.diet}</span>
+                            </div>
+                            <div class="visibility-toggles">
+                                <label><input type="checkbox" class="ent-cb" id="ent-${id}" ${hiddenEntities.has(id) ? '' : 'checked'} onchange="toggleEntities('${id}', this.checked)"> Ents</label>
+                                <label><input type="checkbox" class="den-cb" id="den-${id}" ${hiddenDens.has(id) ? '' : 'checked'} onchange="toggleDens('${id}', this.checked)"> Dens</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="species-body">
+                        <div class="species-stat-group">
+                            <div class="species-stat">
+                                <span class="stat-lbl">Avg Lvl</span>
+                                <span class="stat-val" id="species-avg-lvl-${id}">-</span>
+                            </div>
+                            <div class="species-stat">
+                                <span class="stat-lbl">Dens</span>
+                                <span class="stat-val" id="species-dens-${id}">-</span>
+                            </div>
+                        </div>
+                        <div class="pop-container">
+                            <span class="pop-val" id="species-pop-${id}">0</span>
+                            <span class="pop-delta delta-neutral" id="species-delta-${id}">+0 (50t)</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        // Poll State & Update statistics
+        async function pollState() {
+            try {
+                const stateRes = await fetch('/api/state');
+                const stateData = await stateRes.json();
+                
+                // Detect fresh start (tick went backwards)
+                if (stateData.current_tick !== undefined && stateData.current_tick < currentTick) {
+                    rollingHistory = [];
+                    historyTickMap.clear();
+                    deltaHistory.clear();
+                }
+                
+                dens = stateData.dens || [];
+                baseSeed = stateData.base_seed;
+                currentTick = stateData.current_tick || 0;
+                const combatStats = stateData.combat_stats || { kills: 0, fleds: 0, draws: 0 };
+                
+                // Update header tags
+                document.getElementById('clock-tick').innerText = currentTick;
+                document.getElementById('world-seed').innerText = baseSeed;
+                document.getElementById('overall-dens').innerText = dens.length;
+
+                // Update combat stats
+                const statKills = document.getElementById('stat-kills');
+                const statFleds = document.getElementById('stat-fleds');
+                const statDraws = document.getElementById('stat-draws');
+                if(statKills) statKills.innerText = combatStats.kills;
+                if(statFleds) statFleds.innerText = combatStats.fleds;
+                if(statDraws) statDraws.innerText = combatStats.draws;
+
+                const entitiesRes = await fetch('/api/entities');
+                activeMonsters = await entitiesRes.json();
+                
+                updateStats();
+                draw();
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }
+
+        // Process data and populate UI elements
+        function updateStats() {
+            const counts = {};
+            const avgLevels = {};
+            const denCounts = {};
+            
+            // Initialize count structures
+            for (const spId of Object.keys(speciesDb)) {
+                counts[spId] = 0;
+                avgLevels[spId] = 0;
+                denCounts[spId] = 0;
+            }
+            
+            // Counts monsters
+            const monsterList = Object.values(activeMonsters);
+            const totalPop = monsterList.length;
+            
+            monsterList.forEach(monster => {
+                const spId = monster[0].toString();
+                if (counts[spId] !== undefined) {
+                    counts[spId]++;
+                    avgLevels[spId] += monster[4]; // level
+                }
+            });
+            
+            // Finalize averages
+            for (const spId of Object.keys(speciesDb)) {
+                if (counts[spId] > 0) {
+                    avgLevels[spId] = (avgLevels[spId] / counts[spId]).toFixed(1);
+                } else {
+                    avgLevels[spId] = '-';
+                }
+            }
+            
+            // Count dens
+            dens.forEach(den => {
+                const spId = den[2].toString();
+                if (denCounts[spId] !== undefined) {
+                    denCounts[spId]++;
+                }
+            });
+            
+            // Save population state to delta log at this specific tick
+            deltaHistory.set(currentTick, { ...counts, total: totalPop, totalDens: dens.length });
+            
+            // Calculate 50-tick delta
+            const deltaTick = currentTick - 50;
+            let histCounts = null;
+            
+            // Check if we have history exactly 50 ticks ago. If not, find closest older tick
+            if (deltaHistory.has(deltaTick)) {
+                histCounts = deltaHistory.get(deltaTick);
+            } else {
+                let closestTick = -1;
+                for (const t of deltaHistory.keys()) {
+                    if (t <= deltaTick && t > closestTick) {
+                        closestTick = t;
+                    }
+                }
+                if (closestTick !== -1) {
+                    histCounts = deltaHistory.get(closestTick);
+                }
+            }
+            
+            // Update individual species HTML
+            for (const [id, count] of Object.entries(counts)) {
+                const popEl = document.getElementById(`species-pop-${id}`);
+                const lvlEl = document.getElementById(`species-avg-lvl-${id}`);
+                const denEl = document.getElementById(`species-dens-${id}`);
+                const deltaEl = document.getElementById(`species-delta-${id}`);
+                
+                if (popEl) popEl.innerText = count;
+                if (lvlEl) lvlEl.innerText = avgLevels[id];
+                if (denEl) denEl.innerText = denCounts[id];
+                
+                if (deltaEl && histCounts) {
+                    const prevCount = histCounts[id] || 0;
+                    const diff = count - prevCount;
+                    if (diff > 0) {
+                        deltaEl.innerText = `+${diff} (50t)`;
+                        deltaEl.className = "pop-delta delta-positive";
+                    } else if (diff < 0) {
+                        deltaEl.innerText = `${diff} (50t)`;
+                        deltaEl.className = "pop-delta delta-negative";
+                    } else {
+                        deltaEl.innerText = `+0 (50t)`;
+                        deltaEl.className = "pop-delta delta-neutral";
+                    }
+                }
+            }
+            
+            document.getElementById('overall-pop').innerText = totalPop;
+            
+            if (histCounts) {
+                const prevDens = histCounts.totalDens || 0;
+                const denDiff = dens.length - prevDens;
+                const densDeltaEl = document.getElementById('overall-dens-delta');
+                if (densDeltaEl) {
+                    if (denDiff > 0) {
+                        densDeltaEl.innerText = `+${denDiff} (50t)`;
+                        densDeltaEl.className = "pop-delta delta-positive";
+                    } else if (denDiff < 0) {
+                        densDeltaEl.innerText = `${denDiff} (50t)`;
+                        densDeltaEl.className = "pop-delta delta-negative";
+                    } else {
+                        densDeltaEl.innerText = `+0 (50t)`;
+                        densDeltaEl.className = "pop-delta delta-neutral";
+                    }
+                }
+            }
+            
+            // Update Sparkline Data
+            if (!historyTickMap.has(currentTick)) {
+                const historyEntry = { tick: currentTick, overall: totalPop };
+                for (const spId of Object.keys(speciesDb)) {
+                    historyEntry[spId] = counts[spId];
+                }
+                
+                rollingHistory.push(historyEntry);
+                historyTickMap.set(currentTick, rollingHistory.length - 1);
+                
+                if (rollingHistory.length > maxHistoryTicks) {
+                    const oldEntry = rollingHistory.shift();
+                    historyTickMap.delete(oldEntry.tick);
+                    
+                    // Rebuild map indices
+                    historyTickMap.clear();
+                    rollingHistory.forEach((entry, idx) => {
+                        historyTickMap.set(entry.tick, idx);
+                    });
+                }
+                
+                drawSparkline();
+            }
+        }
+
+        // Draw Sparkline Graph using Canvas
+        function drawSparkline() {
+            const chartCanvas = document.getElementById('sparkline-canvas');
+            const cCtx = chartCanvas.getContext('2d');
+            
+            // Set scale to physical dimensions
+            const dpr = window.devicePixelRatio || 1;
+            const rect = chartCanvas.getBoundingClientRect();
+            chartCanvas.width = rect.width * dpr;
+            chartCanvas.height = rect.height * dpr;
+            cCtx.scale(dpr, dpr);
+            
+            const w = rect.width;
+            const h = rect.height;
+            
+            cCtx.clearRect(0, 0, w, h);
+            
+            if (rollingHistory.length < 2) return;
+            
+            // Determine scale max
+            let maxVal = 20;
+            rollingHistory.forEach(entry => {
+                for (const spId of Object.keys(speciesDb)) {
+                    if (entry[spId] > maxVal) maxVal = entry[spId];
+                }
+            });
+            maxVal = Math.ceil(maxVal * 1.15); // Add 15% padding
+            
+            // Helper to translate values to coordinates
+            const getX = (idx) => (idx / (maxHistoryTicks - 1)) * w;
+            const getY = (val) => h - 5 - ((val / maxVal) * (h - 10));
+            
+            // Render Background Grid Lines
+            cCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+            cCtx.lineWidth = 1;
+            for (let i = 1; i <= 3; i++) {
+                const yLine = h * (i / 4);
+                cCtx.beginPath();
+                cCtx.moveTo(0, yLine);
+                cCtx.lineTo(w, yLine);
+                cCtx.stroke();
+            }
+            
+            // 1. Render Species Lines
+            for (const spId of Object.keys(speciesDb)) {
+                cCtx.strokeStyle = speciesColors[spId] || '#ffffff';
+                cCtx.lineWidth = 1.5;
+                cCtx.beginPath();
+                
+                rollingHistory.forEach((entry, idx) => {
+                    const val = entry[spId] || 0;
+                    if (idx === 0) cCtx.moveTo(getX(idx), getY(val));
+                    else cCtx.lineTo(getX(idx), getY(val));
+                });
+                cCtx.stroke();
+            }
+            
+            // Removed Overall Line rendering
+        }
+
+        // Initialize dashboard
+        async function init() {
+            await fetchSpeciesDb();
+            // Start Polling every 500ms
+            await pollState();
+            setInterval(pollState, 500);
+        }
+        
+        init();
+    </script>
+</body>
+</html>

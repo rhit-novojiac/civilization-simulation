@@ -1,0 +1,48 @@
+{
+  "world": {
+    "width": 1000,
+    "height": 1000,
+    "seed": 841299
+  },
+  "generation": {
+    "island_noise_scale": 100.0,
+    "elevation_noise_scale": 50.0,
+    "river_spawn_count": 40
+  },
+  "biomes": {
+    "dens_per_biome": 100,
+    "seed_counts": {
+      "PLAINS": 50,
+      "FOREST": 50,
+      "JUNGLE": 25,
+      "MOUNTAIN": 25,
+      "DESERT": 1
+    },
+    "growth_modifiers": {
+      "forest_water_bonus": 2.0,
+      "jungle_max_elevation": 0.6,
+      "mountain_min_elevation": 0.7,
+      "desert_water_penalty": 0.25,
+      "desert_min_water_distance": 15,
+      "desert_flatland_bonus": 2.0,
+      "desert_jungle_buffer": 10
+    }
+  },
+  "simulation": {
+    "tick_delay_seconds": 0.0,
+    "max_population": 10000,
+    "max_grazers_per_tile": 4,
+    "initial_monsters_per_den": 2,
+    "den_charges": 3,
+    "epsilon_decay_ticks": 800,
+    "max_level_cap": 10
+  },
+  "logging": {
+    "log_combat": false,
+    "log_ecology": false,
+    "log_clock": true,
+    "log_population": false,
+    "log_world_state": true,
+    "log_metabolism": true
+  }
+}

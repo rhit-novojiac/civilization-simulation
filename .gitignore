@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.npy
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Data and Logs
+!data/species_db.json
+data/
+
+
+# Images
+images/
+
+# Editor/IDE
+.vscode/
+.idea/
+.gemini/
+./agents
