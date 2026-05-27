@@ -9,26 +9,27 @@ LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.
 
 life_events_buffer = []
 
-def init_logs():
-    """Wipes old logs and prepares the logs directory."""
+def init_logs(is_fresh=False):
+    """Wipes old logs if is_fresh is True, and prepares the logs directory."""
     if not os.path.exists(LOGS_DIR):
         os.makedirs(LOGS_DIR, exist_ok=True)
-    else:
+    elif is_fresh:
         for f in glob.glob(os.path.join(LOGS_DIR, "*.csv")):
             try:
                 os.remove(f)
             except Exception:
                 pass
                 
-    # Also delete deprecated root-level CSVs
-    data_dir = os.path.dirname(LOGS_DIR)
-    for deprecated_file in ["population_log.csv", "combat_log.csv"]:
-        f_path = os.path.join(data_dir, deprecated_file)
-        if os.path.exists(f_path):
-            try:
-                os.remove(f_path)
-            except Exception:
-                pass
+    if is_fresh:
+        # Also delete deprecated root-level CSVs
+        data_dir = os.path.dirname(LOGS_DIR)
+        for deprecated_file in ["population_log.csv", "combat_log.csv"]:
+            f_path = os.path.join(data_dir, deprecated_file)
+            if os.path.exists(f_path):
+                try:
+                    os.remove(f_path)
+                except Exception:
+                    pass
 
 def log_combat_outcome(tick, a_species, a_lvl, b_species, b_lvl, outcome, x, y, biome):
     """

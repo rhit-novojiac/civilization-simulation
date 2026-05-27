@@ -1,5 +1,6 @@
 import math
 from schema.entities import MonsterData
+from schema.terrain import TileType
 from config import ConfigManager
 
 def calculate_active_stat(base_stat, growth, level):
@@ -37,15 +38,16 @@ def get_max_hp(active_endurance):
     """
     return 20 + (active_endurance * 5)
 
-def get_armor(active_endurance):
+def calculate_evasion(active_agility, is_flat_footed=False):
     """
-    Physical Armor: floor(Active_Endurance / 2)
+    Armor Class (Evasion): 10 + Agility (or 0 if flat-footed)
     """
-    return math.floor(active_endurance / 2)
+    agi = 0 if is_flat_footed else active_agility
+    return 10 + agi
 
 def get_base_damage(species_id, active_strength, species_db):
     """
-    Base Damage = Natural_Weapon_Damage + Active_Strength
+    Base Damage Component = Natural_Weapon_Damage + Active_Strength
     """
     spec_info = species_db.get(str(species_id), {})
     natural_weapon = spec_info.get("natural_weapon", {"base_damage": 1})
@@ -93,30 +95,48 @@ def apply_xp(monster, xp_gained):
     monster[MonsterData.CURRENT_XP] = current_xp
     return leveled_up
 
-def resolve_attack(attacker, defender, species_db):
+import random
+def resolve_attack(attacker, defender, species_db, is_flat_footed=False, is_turn_zero=False, terrain_val=None):
     """
-    Resolves a basic attack from attacker onto defender.
+    Resolves a basic attack from attacker onto defender using 1d20 system.
     Modifies defender's hp_percent.
-    Returns damage dealt.
+    Returns (hit_success, damage_dealt)
     """
     att_species_id = attacker[MonsterData.SPECIES_ID]
-    att_level = attacker[MonsterData.LEVEL]
-    
-    def_species_id = defender[MonsterData.SPECIES_ID]
-    def_level = defender[MonsterData.LEVEL]
     
     att_stats = get_active_stats(attacker, species_db)
     def_stats = get_active_stats(defender, species_db)
     
-    base_dmg = get_base_damage(att_species_id, att_stats["str"], species_db)
-    def_armor = get_armor(def_stats["end"])
+    # Accuracy Check: 1d20 + DEX
+    attack_roll = random.randint(1, 20) + att_stats["dex"]
+    evasion = calculate_evasion(def_stats["agi"], is_flat_footed)
     
-    damage_dealt = max(1, base_dmg - def_armor)
-    
-    def_max_hp = get_max_hp(def_stats["end"])
-    
-    # Apply damage as reduction in hp_percent
-    hp_percent_reduction = float(damage_dealt) / float(def_max_hp)
-    defender[MonsterData.HP_PERCENT] = max(0.0, defender[MonsterData.HP_PERCENT] - hp_percent_reduction)
-    
-    return damage_dealt
+    if attack_roll >= evasion:
+        # Damage Output: 1d6 + STR + Weapon_Damage
+        base_dmg = get_base_damage(att_species_id, att_stats["str"], species_db)
+        damage_dealt = random.randint(1, 6) + base_dmg
+        
+        # Turn 0 Ambush Multiplier
+        if is_turn_zero:
+            att_diet = species_db.get(str(att_species_id), {}).get("diet")
+            def_diet = species_db.get(str(defender[MonsterData.SPECIES_ID]), {}).get("diet")
+            if att_diet == "Carnivore" and def_diet == "Herbivore":
+                multiplier = 1.5
+                if str(att_species_id) == "5" and terrain_val is not None:
+                    try:
+                        terrain_enum = TileType(int(terrain_val))
+                        if terrain_enum in (TileType.JUNGLE, TileType.FOREST):
+                            multiplier = 2.0
+                    except ValueError:
+                        pass
+                damage_dealt = math.floor(damage_dealt * multiplier)
+                
+        def_max_hp = get_max_hp(def_stats["end"])
+        
+        # Apply damage as reduction in hp_percent
+        hp_percent_reduction = float(damage_dealt) / float(def_max_hp)
+        defender[MonsterData.HP_PERCENT] = max(0.0, defender[MonsterData.HP_PERCENT] - hp_percent_reduction)
+        
+        return True, damage_dealt
+    else:
+        return False, 0

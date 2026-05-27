@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from config import ConfigManager
 
@@ -46,7 +47,7 @@ class StateManager:
     def rebuild_cache(self, world_generator):
         if world_generator is not None:
             if ConfigManager().log_world_state:
-                print(f"[StateManager] Rebuilding base world cache in RAM using seed {self.base_seed}...")
+                print(f"[StateManager] Rebuilding base world cache in RAM using seed {self.base_seed}...", file=sys.__stdout__)
             self.base_grid = world_generator.generate(self.base_seed)
             if not self.altars:
                 self.altars = world_generator.altars.copy()
@@ -93,7 +94,7 @@ class StateManager:
             json.dump(self.active_monsters, f, indent=2)
             
         if ConfigManager().log_world_state:
-            print("[StateManager] Successfully saved game state and entities to disk.")
+            print("[StateManager] Successfully saved game state and entities to disk.", file=sys.__stdout__)
 
     def load_from_disk(self, world_generator):
         """Loads both game state and volatile entity state from disk."""
@@ -108,7 +109,7 @@ class StateManager:
             self.current_tick = game_state.get("current_tick", 0)
             self.rebuild_cache(world_generator)
             if ConfigManager().log_world_state:
-                print("[StateManager] Loaded static game state.")
+                print("[StateManager] Loaded static game state.", file=sys.__stdout__)
         else:
             raise FileNotFoundError("active_game_state.json not found.")
 
@@ -116,17 +117,17 @@ class StateManager:
             with open(self.entities_path, "r") as f:
                 self.active_monsters = json.load(f)
                 
-            # Migration for Age (Schema expanded from 7 to 8 slots)
+            # Migration for schema expansion
             for entity_id, entity_data in self.active_monsters.items():
-                if len(entity_data) == 7:
+                while len(entity_data) < 17:
                     entity_data.append(0)
                     
             if ConfigManager().log_world_state:
-                print("[StateManager] Loaded volatile entity state.")
+                print("[StateManager] Loaded volatile entity state.", file=sys.__stdout__)
         else:
             self.active_monsters = {}
             if ConfigManager().log_world_state:
-                print("[StateManager] No active entities found (first run).")
+                print("[StateManager] No active entities found (first run).", file=sys.__stdout__)
 
 # Global singleton instance
 state_manager = StateManager()

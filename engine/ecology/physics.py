@@ -14,15 +14,21 @@ TERRAIN_COOLDOWNS = {
 
 def update_scent_compass(state_manager, species_db):
     """
-    Calculates normalized directional vectors for Carnivores pointing towards the nearest Herbivore Den.
-    Runs every 20 ticks to save CPU. Includes 'Zero Dens' edge case safeguard.
+    Calculates normalized directional vectors for Carnivores pointing towards the nearest bleeding Herbivore,
+    falling back to the nearest Herbivore Den if no bleeding entities are within 50 tiles.
     """
-    # Pre-filter herbivore dens to avoid repeated inner loop lookups
+    # Pre-filter herbivore dens and bleeding herbivores
     herbivore_dens = []
     for den in state_manager.dens:
         den_sp = str(den[DenData.SPECIES_ID])
         if species_db.get(den_sp, {}).get("diet") == "Herbivore":
             herbivore_dens.append((den[DenData.X], den[DenData.Y]))
+
+    bleeding_herbivores = []
+    for m in state_manager.active_monsters.values():
+        sp = str(m[MonsterData.SPECIES_ID])
+        if species_db.get(sp, {}).get("diet") == "Herbivore" and m[MonsterData.IS_BLEEDING]:
+            bleeding_herbivores.append((m[MonsterData.X], m[MonsterData.Y]))
 
     for mid, m in state_manager.active_monsters.items():
         species_id = str(m[MonsterData.SPECIES_ID])
@@ -32,33 +38,45 @@ def update_scent_compass(state_manager, species_db):
             if m[MonsterData.SCENT_UPDATE_TIMER] > 0:
                 m[MonsterData.SCENT_UPDATE_TIMER] -= 1
             else:
-                # Zero Dens Edge Case Safeguard
-                if not herbivore_dens:
-                    m[MonsterData.SCENT_DX] = 0.0
-                    m[MonsterData.SCENT_DY] = 0.0
-                    m[MonsterData.SCENT_UPDATE_TIMER] = 20
-                    continue
-
                 best_sq_dist = float('inf')
                 best_dx, best_dy = 0.0, 0.0
                 my_x, my_y = m[MonsterData.X], m[MonsterData.Y]
                 
-                for den_x, den_y in herbivore_dens:
-                    dx = den_x - my_x
-                    dy = den_y - my_y
+                # 1. Check for bleeding prey (radius 50 tiles, squared = 2500)
+                found_blood = False
+                for bx, by in bleeding_herbivores:
+                    dx = bx - my_x
+                    dy = by - my_y
                     sq_dist = dx*dx + dy*dy
-                    
-                    if sq_dist < best_sq_dist:
+                    if sq_dist <= 2500.0 and sq_dist < best_sq_dist:
                         best_sq_dist = sq_dist
                         best_dx, best_dy = dx, dy
+                        found_blood = True
+                
+                # 2. Fallback to Dens if no blood trail
+                if not found_blood:
+                    if not herbivore_dens:
+                        m[MonsterData.SCENT_DX] = 0.0
+                        m[MonsterData.SCENT_DY] = 0.0
+                        m[MonsterData.SCENT_UPDATE_TIMER] = 20
+                        m[MonsterData.TRACKING_BLOOD] = False
+                        continue
                         
+                    for den_x, den_y in herbivore_dens:
+                        dx = den_x - my_x
+                        dy = den_y - my_y
+                        sq_dist = dx*dx + dy*dy
+                        if sq_dist < best_sq_dist:
+                            best_sq_dist = sq_dist
+                            best_dx, best_dy = dx, dy
+
+                m[MonsterData.TRACKING_BLOOD] = found_blood
+                
                 if best_sq_dist > 0:
-                    # Normalize vector and handle ZeroDivisionError (sq_dist == 0 handled by > 0 check)
                     dist = math.sqrt(best_sq_dist)
                     m[MonsterData.SCENT_DX] = float(best_dx) / dist
                     m[MonsterData.SCENT_DY] = float(best_dy) / dist
                 else:
-                    # They are on the exact same tile as the den
                     m[MonsterData.SCENT_DX] = 0.0
                     m[MonsterData.SCENT_DY] = 0.0
                     

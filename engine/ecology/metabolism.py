@@ -19,47 +19,18 @@ def process_metabolism(species_db, config):
     for pos in expired_deaths:
         del recent_deaths[pos]
         
-    # 1. Process Scavenger feeding
-    scavenger_fed_count = 0
-    for entity_id, entity_data in state_manager.active_monsters.items():
-        species_id = str(entity_data[MonsterData.SPECIES_ID])
-        spec_info = species_db.get(species_id)
-        if spec_info and spec_info.get("diet") == "Scavenger":
-            x = int(entity_data[MonsterData.X])
-            y = int(entity_data[MonsterData.Y])
-            
-            if (x, y) in recent_deaths:
-                carcass = recent_deaths[(x, y)]
-                if isinstance(carcass, dict):
-                    # Finite Biomass Pool Logic
-                    available = carcass["biomass"]
-                    amount_to_eat = min(5.0, available)
-                    
-                    if amount_to_eat > 0:
-                        entity_data[MonsterData.BIOMASS] = min(100.0, entity_data[MonsterData.BIOMASS] + amount_to_eat)
-                        carcass["biomass"] -= amount_to_eat
-                        scavenger_fed_count += 1
-                        
-                        if carcass["biomass"] <= 0:
-                            del recent_deaths[(x, y)]
-                else:
-                    # Legacy support if any old int timestamps remain
-                    entity_data[MonsterData.BIOMASS] = min(100.0, entity_data[MonsterData.BIOMASS] + 5.0)
-                    scavenger_fed_count += 1
-                
-    if scavenger_fed_count > 0 and config.log_metabolism:
-        print(f"[Metabolism] {scavenger_fed_count} Scavengers fed on carcasses.")
-
-    # 2. Process regular metabolism and starvation
-    dead_entities = []
-    old_age_count = 0
-    # Pre-compute spatial occupancy for overgrazing checks
+    # 1. Pass 1: Pre-compute spatial occupancy for overgrazing checks
     occupancy_counts = {}
-    for _, entity_data in list(state_manager.active_monsters.items()):
+    for _, entity_data in state_manager.active_monsters.items():
         pos = (int(entity_data[MonsterData.X]), int(entity_data[MonsterData.Y]))
         occupancy_counts[pos] = occupancy_counts.get(pos, 0) + 1
-        
-    for entity_id, entity_data in list(state_manager.active_monsters.items()):
+
+    # 2. Pass 2: Process regular metabolism and starvation (Corpse Generation)
+    to_delete = []
+    old_age_count = 0
+    overgrazing_penalties = {}
+    
+    for entity_id, entity_data in state_manager.active_monsters.items():
         x = entity_data[MonsterData.X]
         y = entity_data[MonsterData.Y]
         biomass = entity_data[MonsterData.BIOMASS]
@@ -76,7 +47,7 @@ def process_metabolism(species_db, config):
         max_age = base_lifespan * level
         
         if entity_data[MonsterData.AGE] >= max_age:
-            dead_entities.append(entity_id)
+            to_delete.append(entity_id)
             old_age_count += 1
             try:
                 biome_val = state_manager.get_tile(x, y)
@@ -108,6 +79,10 @@ def process_metabolism(species_db, config):
                     grazing_gain = 0.5
                 elif species_id == "7" and tile_type == TileType.DESERT:
                     grazing_gain = 0.5
+                elif species_id == "8" and tile_type in (TileType.FOREST, TileType.JUNGLE):
+                    grazing_gain = 0.5
+            else:
+                overgrazing_penalties[entity_id] = -2.0
                 
             biomass = min(100.0, biomass + grazing_gain)
         # ---------------------------------
@@ -123,7 +98,7 @@ def process_metabolism(species_db, config):
         if new_biomass == 0.0:
             hp_percent -= 0.10
             if hp_percent <= 0.0:
-                dead_entities.append(entity_id)
+                to_delete.append(entity_id)
                 try:
                     biome_val = state_manager.get_tile(x, y)
                     biome = TileType(biome_val).name
@@ -137,17 +112,53 @@ def process_metabolism(species_db, config):
                 }
             else:
                 entity_data[MonsterData.HP_PERCENT] = hp_percent
-                
-    # Cleanup dead entities
-    for entity_id in dead_entities:
+
+    # 3. Pass 3: Process Scavenger feeding (Now correctly accessing fresh corpses)
+    scavenger_fed_count = 0
+    for entity_id, entity_data in state_manager.active_monsters.items():
+        if entity_id in to_delete:
+            continue
+            
+        species_id = str(entity_data[MonsterData.SPECIES_ID])
+        spec_info = species_db.get(species_id)
+        if spec_info and spec_info.get("diet") == "Scavenger":
+            x = int(entity_data[MonsterData.X])
+            y = int(entity_data[MonsterData.Y])
+            
+            if (x, y) in recent_deaths:
+                carcass = recent_deaths[(x, y)]
+                if isinstance(carcass, dict):
+                    # Finite Biomass Pool Logic
+                    available = carcass["biomass"]
+                    amount_to_eat = min(5.0, available)
+                    
+                    if amount_to_eat > 0:
+                        entity_data[MonsterData.BIOMASS] = min(100.0, entity_data[MonsterData.BIOMASS] + amount_to_eat)
+                        carcass["biomass"] -= amount_to_eat
+                        scavenger_fed_count += 1
+                        
+                        if carcass["biomass"] <= 0:
+                            del recent_deaths[(x, y)]
+                else:
+                    # Legacy support if any old int timestamps remain
+                    entity_data[MonsterData.BIOMASS] = min(100.0, entity_data[MonsterData.BIOMASS] + 5.0)
+                    scavenger_fed_count += 1
+                    
+    if scavenger_fed_count > 0 and config.log_metabolism:
+        print(f"[Metabolism] {scavenger_fed_count} Scavengers fed on carcasses.")
+        
+    # 4. Safe Sweep: Cleanup dead entities
+    for entity_id in to_delete:
         if entity_id in state_manager.active_monsters:
             del state_manager.active_monsters[entity_id]
             
     state_manager.recent_deaths = recent_deaths
         
-    if dead_entities and config.log_metabolism:
-        starved_count = len(dead_entities) - old_age_count
+    if to_delete and config.log_metabolism:
+        starved_count = len(to_delete) - old_age_count
         if starved_count > 0:
             print(f"[Metabolism] {starved_count} entities starved to death this tick.")
         if old_age_count > 0:
             print(f"[Metabolism] {old_age_count} entities died of old age.")
+            
+    return overgrazing_penalties

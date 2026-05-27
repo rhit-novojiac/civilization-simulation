@@ -1,7 +1,7 @@
 import torch
 from schema.terrain import TileType
 
-def encode_macro_state(monster_id, active_monsters, state_manager, width, height, occupancy_map=None):
+def encode_macro_state(monster_id, active_monsters, padded_grid, occupancy_map):
     """
     Converts entity data and local vision grid into a 150-element tensor.
     Input format:
@@ -10,34 +10,39 @@ def encode_macro_state(monster_id, active_monsters, state_manager, width, height
     Total = 150 elements.
     """
     monster = active_monsters[monster_id]
-    my_species_id, mx, my, hp_percent, level, current_xp, biomass, age, _, _, _, scent_dx, scent_dy = monster
+    my_species_id, mx, my, hp_percent, level, current_xp, biomass, age, _, _, _, scent_dx, scent_dy, *rest = monster
     
     if occupancy_map is None:
         occupancy_map = {}
         for mid, m in active_monsters.items():
             if mid != monster_id:
-                occupancy_map[(int(m[1]), int(m[2]))] = m
+                pos = (int(m[1]), int(m[2]))
+                if pos not in occupancy_map:
+                    occupancy_map[pos] = []
+                occupancy_map[pos].append(m)
                 
     features = []
     
     # 7x7 Vision Grid centered at (mx, my)
-    for dy in range(-3, 4):
-        for dx in range(-3, 4):
-            tx = int(mx + dx)
-            ty = int(my + dy)
+    # my, mx are the true coordinates. In padded_grid (padded by 3), the center is my+3, mx+3.
+    # So the slice is my:my+7, mx:mx+7
+    int_mx, int_my = int(mx), int(my)
+    terrain_slice = padded_grid[int_my:int_my+7, int_mx:int_mx+7]
+    
+    for dy in range(7):
+        for dx in range(7):
+            terrain_id = terrain_slice[dy, dx]
             
-            # 1. Terrain ID
-            if 0 <= tx < width and 0 <= ty < height:
-                try:
-                    terrain_id = state_manager.get_tile(tx, ty)
-                except Exception:
-                    terrain_id = 0  # Default to OCEAN if error
-            else:
-                terrain_id = 0  # OCEAN
-                
+            # Map back to world coordinates for occupancy map
+            tx = int_mx + dx - 3
+            ty = int_my + dy - 3
+            
             # 2. Species ID & 3. Power Ratio
-            other_monster = occupancy_map.get((tx, ty))
-            if other_monster is not None:
+            occupants = occupancy_map.get((tx, ty))
+            if occupants:
+                # If multiple, sort by level descending so NN sees most dangerous
+                occupants.sort(key=lambda x: x[4], reverse=True)
+                other_monster = occupants[0]
                 other_species_id = other_monster[0]
                 other_level = other_monster[4]
                 power_ratio = float(other_level) / float(level)
@@ -50,46 +55,46 @@ def encode_macro_state(monster_id, active_monsters, state_manager, width, height
     # Add internal state
     features.append(float(hp_percent))
     features.append(float(biomass) / 100.0) # Normalized biomass (0 to 1)
-    features.append(float(level) / 10.0)    # Normalized level (for scaling)
+    
+    from config import ConfigManager
+    max_level = float(getattr(ConfigManager(), "max_level_cap", 10.0))
+    features.append(float(level) / max_level)    # Normalized level (for scaling)
+    
     features.append(float(scent_dx))
     features.append(float(scent_dy))
     
     return torch.tensor(features, dtype=torch.float32)
 
-def encode_micro_state(my_monster, target_monster, flee_attempts_count=0, combat_grid_size=15):
+def encode_micro_state(my_monster, target_monster, flee_penalty=0, species_db=None):
     """
-    Converts tactical combat state into a 7-element tensor.
-    - my hp_percent
-    - my level (normalized)
-    - delta_x (target_x - my_x)
-    - delta_y (target_y - my_y)
-    - target hp_percent
-    - distance_to_nearest_edge (from my position to combat boundary)
-    - flee_attempts_remaining (normalized)
+    Converts tactical combat state into a 12-element tensor.
+    [My_HP, My_STR, My_END, My_DEX, My_AGI, E_HP, E_STR, E_END, E_DEX, E_AGI, Flee_Penalty, Encounter_Tier]
     """
-    my_species_id, my_x, my_y, my_hp, my_lvl, _, _, _, _, _, _, _, _ = my_monster
-    t_species_id, t_x, t_y, t_hp, t_lvl, _, _, _, _, _, _, _, _ = target_monster
+    from engine.combat.physics import get_active_stats, get_max_hp
+    import math
+
+    my_stats = get_active_stats(my_monster, species_db)
+    t_stats = get_active_stats(target_monster, species_db)
     
-    dx = float(t_x - my_x)
-    dy = float(t_y - my_y)
+    my_max_hp = get_max_hp(my_stats["end"])
+    t_max_hp = get_max_hp(t_stats["end"])
     
-    # Distance to nearest edge of the combat grid
-    dist_left = float(my_x)
-    dist_right = float(combat_grid_size - 1 - my_x)
-    dist_top = float(my_y)
-    dist_bottom = float(combat_grid_size - 1 - my_y)
+    my_hp = my_max_hp * my_monster[3] # hp_percent
+    t_hp = t_max_hp * target_monster[3]
     
-    dist_edge = min(dist_left, dist_right, dist_top, dist_bottom)
-    
-    attempts_remaining_normalized = (3.0 - float(flee_attempts_count)) / 3.0
-    
-    features = [
-        float(my_hp),
-        float(my_lvl) / 10.0,
-        dx,
-        dy,
-        float(t_hp),
-        dist_edge,
-        attempts_remaining_normalized
+    raw_stats = [
+        my_hp, my_stats["str"], my_stats["end"], my_stats["dex"], my_stats["agi"],
+        t_hp, t_stats["str"], t_stats["end"], t_stats["dex"], t_stats["agi"]
     ]
+    
+    max_raw_stat = max(1.0, float(max(raw_stats)))
+    
+    # Scale all by max_raw_stat
+    scaled_stats = [float(val) / max_raw_stat for val in raw_stats]
+    
+    # Tier Injection
+    encounter_tier = min(1.0, math.log10(max_raw_stat) / 3.0)
+    
+    features = scaled_stats + [float(flee_penalty), encounter_tier]
+    
     return torch.tensor(features, dtype=torch.float32)

@@ -14,6 +14,10 @@ class MonsterData(IntEnum):
     SCENT_UPDATE_TIMER = 10
     SCENT_DX = 11
     SCENT_DY = 12
+    IS_BLEEDING = 13
+    BLEEDING_TICKS = 14
+    TRACKING_BLOOD = 15
+    RAIDED_DEN = 16
 
 class DenData(IntEnum):
     X = 0

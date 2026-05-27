@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--fresh", action="store_true", help="Start a fresh world (deletes existing save data)")
     parser.add_argument("--log", action="store_true", help="Enable console logging (improves performance if disabled)")
     parser.add_argument("--max-ticks", type=int, default=0, help="Maximum number of ticks to run before auto-saving and exiting (0 = infinite)")
+    parser.add_argument("--clear-brains", action="store_true", help="Delete all PyTorch model weights before starting")
     args = parser.parse_args()
 
     if not args.log:
@@ -52,12 +53,47 @@ def main():
     ConfigManager._instance = None
     config = ConfigManager()
     species_db = load_species_db()
+    
+    # Filter inactive species
+    species_db = {k: v for k, v in species_db.items() if str(k) in config.active_species}
 
     print(f"World Seed      : {config.seed}")
     print(f"Dimensions      : {config.width}x{config.height}")
     print(f"Max Population  : {config.max_population}")
     print(f"Tick Delay (s)  : {config.tick_delay_seconds}")
     
+    if args.fresh:
+        state_file_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "active_game_state.json")
+        entities_file_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "active_entities.json")
+        csv_file_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "population_log.csv")
+        
+        for f in [state_file_tmp, entities_file_tmp, csv_file_tmp]:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    print(f"Warning: Could not remove {f} - {e}")
+                    
+        if config.log_world_state:
+            print("\n[WorldState] --fresh flag provided. Existing save files removed.", file=sys.__stdout__)
+
+    if args.clear_brains:
+        import glob
+        models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "models")
+        for f in glob.glob(os.path.join(models_dir, "*.pt")):
+            basename = os.path.basename(f)
+            # e.g., "species_1_macro.pt" -> parts[1] == "1"
+            parts = basename.split("_")
+            if len(parts) >= 2 and parts[1] in config.preserve_brains:
+                continue
+            
+            try:
+                os.remove(f)
+            except Exception as e:
+                print(f"Warning: Could not remove {f} - {e}")
+        if config.log_world_state:
+            print("\n[ML] --clear-brains flag provided. All PyTorch models have been wiped.", file=sys.__stdout__)
+
     # 2. Launch Dashboard Server in Background Thread
     print("\n[Dashboard] Launching dashboard server...")
     server_thread = threading.Thread(target=start_server, args=(8000,), daemon=True)
@@ -72,36 +108,37 @@ def main():
     entities_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "active_entities.json")
     csv_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "population_log.csv")
     
-    if args.fresh:
-        if os.path.exists(state_file):
-            os.remove(state_file)
-        if os.path.exists(entities_file):
-            os.remove(entities_file)
-        if os.path.exists(csv_file):
-            os.remove(csv_file)
-        if config.log_world_state:
-            print("\n[WorldState] --fresh flag provided. Existing save files removed.")
-
     if os.path.exists(state_file):
         if config.log_world_state:
-            print("\n[WorldState] Found active save file. Resuming simulation...")
+            print("\n[WorldState] Found active save file. Resuming simulation...", file=sys.__stdout__)
         state_manager.load_from_disk(generator)
-        print("\n[System] Successfully loaded map from save.")
+        
+        # Purge inactive entities and dens
+        state_manager.active_monsters = {
+            eid: m for eid, m in state_manager.active_monsters.items()
+            if str(m[MonsterData.SPECIES_ID]) in config.active_species
+        }
+        state_manager.dens = [
+            d for d in state_manager.dens 
+            if d is not None and str(d[DenData.SPECIES_ID]) in config.active_species
+        ]
+        
+        print("\n[System] Successfully loaded map from save.", file=sys.__stdout__)
     else:
         if config.log_world_state:
-            print("\n[WorldState] No save file found. Initializing fresh world...")
+            print("\n[WorldState] No save file found. Initializing fresh world...", file=sys.__stdout__)
         state_manager.initialize_world(config.seed, generator)
         biome_grid = state_manager.base_grid
         
         if config.log_world_state:
-            print("[WorldState] Creating Day 1 Dens...")
+            print("[WorldState] Creating Day 1 Dens...", file=sys.__stdout__)
         from engine.world_gen.spawners import populate_dens
         state_manager.dens = populate_dens(config, biome_grid, config.seed)
         
         if config.log_world_state:
-            print("[WorldState] Executing First Wave Spawning...")
+            print("[WorldState] Executing First Wave Spawning...", file=sys.__stdout__)
         execute_first_wave(0, config, species_db)
-        print("\n[System] Successfully finished First Wave Spawning.")
+        print("\n[System] Successfully finished First Wave Spawning.", file=sys.__stdout__)
         
         # Save day 1 map renders
         img_dir = os.path.join(os.path.dirname(__file__), "images")
@@ -116,14 +153,41 @@ def main():
     # 4. Initialize Shared Brains (Hive Minds) for each of the 6 species
     print("\n[ML] Initializing species PyTorch Neural Networks...")
     brains = {}
+    pretrained_species = set()
     for species_id in list(species_db.keys()):
         macro_policy = MacroDQN()
         macro_target = MacroDQN()
-        macro_trainer = DQNTrainer(macro_policy, macro_target, learning_rate=1e-4, dual_headed=True)
         
         micro_policy = MicroDQN()
         micro_target = MicroDQN()
-        micro_trainer = DQNTrainer(micro_policy, micro_target, learning_rate=1e-4)
+        
+        if config.debug_mode:
+            macro_path = f"data/models/species_{species_id}_macro.pt"
+            micro_path = f"data/models/species_{species_id}_micro.pt"
+            loaded = False
+            if os.path.exists(macro_path):
+                macro_policy.load_state_dict(torch.load(macro_path))
+                loaded = True
+            if os.path.exists(micro_path):
+                micro_policy.load_state_dict(torch.load(micro_path))
+                loaded = True
+            if loaded:
+                pretrained_species.add(species_id)
+                print(f"[ML] Loaded pretrained weights for Species {species_id}")
+
+        macro_trainer = DQNTrainer(
+            macro_policy, macro_target, 
+            learning_rate=1e-4, dual_headed=True,
+            sync_every=config.target_network_update_interval,
+            batch_size=config.batch_size
+        )
+        
+        micro_trainer = DQNTrainer(
+            micro_policy, micro_target, 
+            learning_rate=1e-4,
+            sync_every=config.target_network_update_interval,
+            batch_size=config.batch_size
+        )
         
         brains[species_id] = {
             'macro': macro_policy,
@@ -139,7 +203,7 @@ def main():
     delta_dens_counter = {sp: 0 for sp in list(species_db.keys())}
     
     from engine.logging.metrics import init_logs
-    init_logs()
+    init_logs(is_fresh=args.fresh)
     
     try:
         while True:
@@ -171,23 +235,35 @@ def main():
             occupancy_map = {}
             for mid in active_list:
                 m = state_manager.active_monsters[mid]
-                occupancy_map[(int(m[MonsterData.X]), int(m[MonsterData.Y]))] = m
+                pos = (int(m[MonsterData.X]), int(m[MonsterData.Y]))
+                if pos not in occupancy_map:
+                    occupancy_map[pos] = []
+                occupancy_map[pos].append(m)
+                
+            import numpy as np
+            padded_grid = np.pad(state_manager.base_grid, 3, mode='constant', constant_values=0)
                 
             # Iterate and infer actions species-by-species (Hive Mind)
             macro_actions_taken = {}  # {mid: action_idx}
             macro_states_cached = {}   # {mid: state_tensor}
             
-            for sp_id in list(species_db.keys()):
-                # Filter monsters of this species
-                sp_mids = []
-                for mid in active_list:
-                    m = state_manager.active_monsters[mid]
-                    if str(m[MonsterData.SPECIES_ID]) == sp_id:
-                        if m[MonsterData.MOVEMENT_COOLDOWN] > 0:
-                            m[MonsterData.MOVEMENT_COOLDOWN] -= 1
-                        else:
-                            sp_mids.append(mid)
-                            
+            # Group monsters by species in a single pass
+            sp_groups = {sp: [] for sp in species_db.keys()}
+            for mid in active_list:
+                m = state_manager.active_monsters[mid]
+                if m[MonsterData.BLEEDING_TICKS] > 0:
+                    m[MonsterData.BLEEDING_TICKS] -= 1
+                    if m[MonsterData.BLEEDING_TICKS] == 0:
+                        m[MonsterData.IS_BLEEDING] = False
+                        
+                if m[MonsterData.MOVEMENT_COOLDOWN] > 0:
+                    m[MonsterData.MOVEMENT_COOLDOWN] -= 1
+                else:
+                    sp_str = str(m[MonsterData.SPECIES_ID])
+                    if sp_str in sp_groups:
+                        sp_groups[sp_str].append(mid)
+            
+            for sp_id, sp_mids in sp_groups.items():
                 if not sp_mids:
                     continue
                 
@@ -197,9 +273,7 @@ def main():
                     state_tensor = encode_macro_state(
                         mid, 
                         state_manager.active_monsters, 
-                        state_manager, 
-                        config.width, 
-                        config.height, 
+                        padded_grid,
                         occupancy_map
                     )
                     states.append(state_tensor)
@@ -215,7 +289,8 @@ def main():
                 biomass_list = [state_manager.active_monsters[mid][MonsterData.BIOMASS] for mid in sp_mids]
                 sp_threshold = species_db.get(sp_id, {}).get("reproduction_threshold", 99.0)
                 diet_list = [species_db.get(sp_id, {}).get("diet", "Unknown") for _ in sp_mids]
-                actions = select_macro_actions(q_move, q_stance, epsilon, biomass_list, threshold=sp_threshold, diet_list=diet_list)
+                active_epsilon = 0.05 if sp_id in pretrained_species else epsilon
+                actions = select_macro_actions(q_move, q_stance, active_epsilon, biomass_list, threshold=sp_threshold, diet_list=diet_list)
                 for i, mid in enumerate(sp_mids):
                     macro_actions_taken[mid] = (actions[i][0], actions[i][1], sp_id)
 
@@ -230,6 +305,24 @@ def main():
                     sp_str = str(d[2])
                     if sp_str in delta_dens_counter:
                         delta_dens_counter[sp_str] += 1
+                        
+            # --- SECTION A.5: CARNIVORE DEN RAIDING ---
+            for mid in active_list:
+                if mid not in state_manager.active_monsters:
+                    continue
+                m = state_manager.active_monsters[mid]
+                diet = species_db.get(str(m[MonsterData.SPECIES_ID]), {}).get("diet", "")
+                if diet in ("Carnivore", "Scavenger"):
+                    my_x, my_y = m[MonsterData.X], m[MonsterData.Y]
+                    for d_idx in range(len(state_manager.dens) - 1, -1, -1):
+                        den = state_manager.dens[d_idx]
+                        if den[DenData.X] == my_x and den[DenData.Y] == my_y:
+                            if str(den[DenData.SPECIES_ID]) != str(m[MonsterData.SPECIES_ID]):
+                                if m[MonsterData.BIOMASS] < 100.0:
+                                    m[MonsterData.BIOMASS] = min(100.0, m[MonsterData.BIOMASS] + 50.0)
+                                    m[MonsterData.RAIDED_DEN] = True
+                                    del state_manager.dens[d_idx]
+                                    break
 
             # --- SECTION B: COMBAT RESOLUTION ---
             coexistence_rewards, death_flags = resolve_overworld_encounters(
@@ -238,10 +331,14 @@ def main():
                 config, 
                 species_db, 
                 brains, 
-                epsilon
+                epsilon,
+                pretrained_species
             )
             
-            # --- SECTION C: EXPERIENCE RECORDING FOR MACRO DQN ---
+            # --- SECTION C: ECOLOGY METABOLISM ---
+            overgrazing_penalties = process_metabolism(species_db, config)
+            
+            # --- SECTION D: EXPERIENCE RECORDING FOR MACRO DQN ---
             from ml.training.reward_shaper import get_macro_reward
             
             for mid, (m_act, s_act, sp_id) in macro_actions_taken.items():
@@ -253,8 +350,16 @@ def main():
                         reward, forage_bonus = get_macro_reward(
                             current_m_data[MonsterData.BIOMASS], 
                             current_m_data[MonsterData.HP_PERCENT], 
-                            action_established_den=(m_act == 5)
+                            action_established_den=(m_act == 5),
+                            action=m_act,
+                            scent_dx=current_m_data[MonsterData.SCENT_DX],
+                            scent_dy=current_m_data[MonsterData.SCENT_DY],
+                            species_id=sp_id,
+                            species_db=species_db,
+                            tracking_blood=current_m_data[MonsterData.TRACKING_BLOOD],
+                            action_raided_den=current_m_data[MonsterData.RAIDED_DEN]
                         )
+                        current_m_data[MonsterData.RAIDED_DEN] = False
                         # Apply herbivore foraging bonus if resting on forest/plains
                         if m_act == 4: # REST
                             spec_info = species_db.get(sp_id)
@@ -271,6 +376,9 @@ def main():
                     # Add coexistence reward if applicable
                     reward += coexistence_rewards.get(mid, 0.0)
                     
+                    # Add overgrazing penalty if applicable
+                    reward += overgrazing_penalties.get(mid, 0.0)
+                    
                     is_dead = death_flags.get(mid, False)
                     if is_dead or current_m_data is None:
                         next_state = torch.zeros_like(m_data_cached)
@@ -278,9 +386,7 @@ def main():
                         next_state = encode_macro_state(
                             mid, 
                             state_manager.active_monsters, 
-                            state_manager, 
-                            config.width, 
-                            config.height, 
+                            padded_grid, 
                             occupancy_map
                         )
                         
@@ -294,11 +400,10 @@ def main():
                         is_dead
                     )
 
-            # --- SECTION D: ECOLOGY METABOLISM ---
-            process_metabolism(species_db, config)
+            # (Metabolism was moved before Experience Recording)
             
             # Periodic den spawn cycle
-            if tick % 50 == 0:
+            if tick % config.den_spawn_interval == 0:
                 spawn_from_dens(tick, config, species_db)
 
             # --- SECTION E: BACKPROPAGATION & ONLINE TRAINING ---
@@ -345,9 +450,12 @@ def main():
             time.sleep(sleep_dur)
 
     except KeyboardInterrupt:
-        print("\n[Clock] Simulation stopped by user. Saving final state to disk...")
+        print("\n[Clock] Simulation stopped by user. Saving final state to disk...", file=sys.__stdout__)
+    finally:
         state_manager.save_to_disk()
-        print("Goodbye!")
+        print("[ML] Saving PyTorch model checkpoints...", file=sys.__stdout__)
+        DQNTrainer.save_models(brains, "data/models/")
+        print("Goodbye!", file=sys.__stdout__)
 
 if __name__ == "__main__":
     main()

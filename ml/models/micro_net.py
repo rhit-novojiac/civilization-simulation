@@ -4,16 +4,16 @@ import torch.nn.functional as F
 
 class MicroDQN(nn.Module):
     """
-    Tactical 15x15 combat network.
-    Input Layer: 7 Neurons (Internal State: hp_percent, level; Target Data: delta_x, delta_y, target_hp_percent; Spatial: distance_to_nearest_edge; Game State: Flee_Attempts_Remaining)
+    Abstract Auto-Battler tactical network.
+    Input Layer: 12 Neurons (Tier Injected Stats)
     Hidden Layers: 64 -> 64
-    Output Layer: 9 Neurons (Raw Q-values for: 8 directional movements, BASIC_ATTACK)
+    Output Layer: 3 Neurons [BASIC_ATTACK, FLEE, TOLERATE]
     """
     def __init__(self):
         super(MicroDQN, self).__init__()
-        self.fc1 = nn.Linear(7, 64)
+        self.fc1 = nn.Linear(12, 64)
         self.fc2 = nn.Linear(64, 64)
-        self.out = nn.Linear(64, 9)
+        self.out = nn.Linear(64, 3)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))

@@ -44,9 +44,9 @@ The repository must follow this exact hierarchy. Create these folders and their 
 │   │   ├── renderer.py       # Outputting map visualizations to /images
 │   │   └── spawners.py       # Day 1 Den scattering logic
 │   │
-│   ├── /combat               # 15x15 Micro-grid resolution
+│   ├── /combat               # Abstract Auto-Battler O(1) resolution
 │   │   ├── __init__.py
-│   │   ├── grid_builder.py   # Extracts local terrain from the macro map
+│   │   ├── grid_builder.py   # Deprecated (Previous 15x15 Micro-grid system)
 │   │   ├── physics.py        # Hit chances, stat comparisons, movement limits
 │   │   └── resolution.py     # Win/loss conditions, XP allocation, instance cleanup
 │   │
@@ -61,8 +61,8 @@ The repository must follow this exact hierarchy. Create these folders and their 
 │   ├── /models               # The PyTorch Architectures
 │   │   ├── __init__.py
 │   │   ├── base_mlp.py       # Shared utility classes for feed-forward nets
-│   │   ├── macro_net.py      # Overworld 5x5 vision grid network
-│   │   └── micro_net.py      # Tactical 15x15 combat network
+│   │   ├── macro_net.py      # Overworld 7x7 vision grid network
+│   │   └── micro_net.py      # Tactical 12-neuron Auto-Battler network
 │   │
 │   ├── /inference            # Translating Engine data -> AI decisions
 │   │   ├── __init__.py
@@ -103,8 +103,8 @@ The repository must follow this exact hierarchy. Create these folders and their 
 
 ### `/engine/combat` (The Micro-Grid)
 
-* **Role:** Handles the collision of two entities.
-* **Rule:** Generates the temporary 15x15 grid, queries `/ml/inference` for micro-actions, calculates the stat math, and outputs the survivor/rewards back to `state_manager.py` and `/ml/training`.
+* **Role:** Handles the collision of two or more entities.
+* **Rule:** Processes the Abstract Auto-Battler O(1) mathematical queue, queries `/ml/inference` for micro-actions, calculates the stat math, and outputs the survivor/rewards back to `state_manager.py` and `/ml/training`.
 
 ### `/ml/inference` (The Bridge)
 

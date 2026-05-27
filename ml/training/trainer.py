@@ -5,7 +5,7 @@ import torch.optim as optim
 from ml.training.replay_buffer import ReplayBuffer
 
 class DQNTrainer:
-    def __init__(self, policy_net, target_net, learning_rate=1e-4, capacity=50000, batch_size=128, gamma=0.99, dual_headed=False):
+    def __init__(self, policy_net, target_net, learning_rate=1e-4, capacity=50000, batch_size=128, gamma=0.99, dual_headed=False, sync_every=1000):
         self.policy_net = policy_net
         self.target_net = target_net
         self.target_net.load_state_dict(policy_net.state_dict())
@@ -19,11 +19,26 @@ class DQNTrainer:
         self.loss_fn = nn.MSELoss()
         
         self.steps_done = 0
-        self.sync_every = 1000
+        self.sync_every = sync_every
 
     def push_transition(self, state, action, reward, next_state, done):
         """Saves a transition to memory."""
         self.memory.push(state, action, reward, next_state, done)
+
+    @staticmethod
+    def save_models(brains, filepath="data/models/"):
+        """Saves Macro and Micro policy networks for all species to disk."""
+        import os
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+            
+        for species_id, brain_dict in brains.items():
+            if 'macro' in brain_dict:
+                macro_path = os.path.join(filepath, f"species_{species_id}_macro.pt")
+                torch.save(brain_dict['macro'].state_dict(), macro_path)
+            if 'micro' in brain_dict:
+                micro_path = os.path.join(filepath, f"species_{species_id}_micro.pt")
+                torch.save(brain_dict['micro'].state_dict(), micro_path)
 
     def optimize_step(self):
         """

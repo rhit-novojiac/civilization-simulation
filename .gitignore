@@ -22,4 +22,4 @@ images/
 .vscode/
 .idea/
 .gemini/
-./agents
+agents/

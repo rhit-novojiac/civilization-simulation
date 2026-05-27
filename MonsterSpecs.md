@@ -61,8 +61,8 @@ Stats increase linearly based on the template's Growth array. Always apply the `
 Once the core Active Stats are calculated, calculate the Derived Stats:
 
 * **Max HP:** $20 + (Active\_Endurance \times 5)$
-* **Physical Armor:** $\lfloor Active\_Endurance \div 2 \rfloor$
 * **Base Damage:** $Natural\_Weapon\_Damage + Active\_Strength$
+* **Turn 0 Ambush Multiplier:** If a Carnivore attacks a Herbivore on the very first turn of combat (Turn 0), damage is multiplied by 1.5. If the attacker is a Giant Spider in a Forest or Jungle biome, the multiplier is 2.0.
 * *Note on Current HP:* To find the entity's current HP for combat, multiply Max HP by their saved `hp_percent`.
 
 ### 3.3 Experience and Leveling Math
@@ -82,7 +82,7 @@ Monsters gain XP by surviving encounters or killing entities.
 ### 4.1 Biomass Accumulation (Eating)
 
 * **Herbivores (Passive Grazing):** Completely decoupled from movement actions. Herbivores automatically gain `+0.5` Biomass every tick they stand on their native biome (`PLAINS`, `FOREST`, `MOUNTAIN`, `DESERT`).
-  * **Overgrazing Constraint:** If more than `10` entities occupy the same tile, the tile is overgrazed, and Herbivores receive `0.0` Biomass.
+  * **Overgrazing Constraint:** If more than `max_grazers_per_tile` (default `3`) entities occupy the same tile, the tile is overgrazed, and Herbivores receive `0.0` Biomass.
   * *Note: Biomass is strictly capped at `100.0`.*
 * **Carnivores & Scavengers ("Taking a Bite"):** Gain `+2.0` Biomass per successful hit landed during combat.
 * **Carnivores (Kill):** Gain Biomass dynamically based on the prey's endurance: `10.0 + (Target Endurance * 1.5)`. *(Note: If they cannibalize their own species, the total reward is divided by 4).*
@@ -98,8 +98,9 @@ Monsters gain XP by surviving encounters or killing entities.
 ### 4.3 Reproduction (Dens)
 
 * **The Trigger:** When a monster's `biomass` reaches its `reproduction_threshold` (usually near 100), its macro DQN unlocks and heavily weights the `ESTABLISH_DEN` action.
-* **The Caloric Cost:** A new entry is added to `WorldState.dens`: `[x, y, species_id, charges]`. The entity's `biomass` is violently consumed, resetting down to its base `starting_biomass` level.
-* **Den Attrition:** Every 50 Overworld Ticks, each Den spawns a Level 1 entity. Dens hold a limited number of charges (default `3`). After spawning 3 entities, the Den collapses and is removed.
+* **The Caloric Cost:** A new entry is added to `WorldState.dens`: `[x, y, species_id, charges, creator_id]`. The entity's `biomass` is violently consumed, resetting down to its base `starting_biomass` level.
+* **1-Active-Den Limit:** An entity can only have 1 active Den at a time. The dictionary lookup checks `HAS_ACTIVE_DEN` to enforce this limit before allowing `ESTABLISH_DEN` to trigger.
+* **Den Attrition:** Every `den_spawn_interval` Overworld Ticks (default `50`), each Den spawns a Level 1 entity. Dens hold a limited number of charges (default `3`). After spawning 3 entities, the Den collapses and is removed. (Dens persist and continue spawning even if the creator dies).
 
 ### 4.4 Movement Cooldowns & Terrain Affinities
 

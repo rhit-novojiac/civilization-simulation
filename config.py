@@ -84,8 +84,42 @@ class ConfigManager:
         self.max_grazers_per_tile = int(sim.get("max_grazers_per_tile", 10))
         self.initial_monsters_per_den = int(sim.get("initial_monsters_per_den", 1))
         self.den_charges = int(sim.get("den_charges", 10))
-        self.epsilon_decay_ticks = int(sim.get("epsilon_decay_ticks", 5000))
+        self.den_spawn_interval = int(sim.get("den_spawn_interval", 50))
         self.max_level_cap = int(sim.get("max_level_cap", 10))
+        
+        # Species Toggles
+        self.active_species = []
+        if sim.get("spawn_horned_rabbits", True): self.active_species.append("1")
+        if sim.get("spawn_dire_wolves", True): self.active_species.append("2")
+        if sim.get("spawn_slimes", True): self.active_species.append("3")
+        if sim.get("spawn_rock_boars", True): self.active_species.append("4")
+        if sim.get("spawn_giant_spiders", True): self.active_species.append("5")
+        if sim.get("spawn_sand_scorpions", True): self.active_species.append("6")
+        if sim.get("spawn_dune_hoppers", True): self.active_species.append("7")
+        if sim.get("spawn_emerald_macaques", True): self.active_species.append("8")
+        
+        # Preserve Brain Toggles
+        self.preserve_brains = []
+        if sim.get("preserve_horned_rabbits", False): self.preserve_brains.append("1")
+        if sim.get("preserve_dire_wolves", False): self.preserve_brains.append("2")
+        if sim.get("preserve_slimes", False): self.preserve_brains.append("3")
+        if sim.get("preserve_rock_boars", False): self.preserve_brains.append("4")
+        if sim.get("preserve_giant_spiders", False): self.preserve_brains.append("5")
+        if sim.get("preserve_sand_scorpions", False): self.preserve_brains.append("6")
+        if sim.get("preserve_dune_hoppers", False): self.preserve_brains.append("7")
+        if sim.get("preserve_emerald_macaques", False): self.preserve_brains.append("8")
+        
+        # RL Debug Toggle
+        self.debug_mode = bool(sim.get("debug_mode", True))
+        
+        if self.debug_mode:
+            self.target_network_update_interval = 50
+            self.batch_size = 32
+            self.epsilon_decay_ticks = 400
+        else:
+            self.target_network_update_interval = 1000
+            self.batch_size = 128
+            self.epsilon_decay_ticks = 100000
         
         # 5. Logging Config
         logging = data.get("logging", {})

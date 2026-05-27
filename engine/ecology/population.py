@@ -40,7 +40,11 @@ def execute_first_wave(tick, config, species_db):
                 0,    # has_active_den
                 20,   # scent_update_timer (trigger almost immediately)
                 0.0,  # scent_dx
-                0.0   # scent_dy
+                0.0,  # scent_dy
+                False, # is_bleeding
+                0,     # bleeding_ticks
+                False, # tracking_blood
+                False  # raided_den
             ]
             
             state_manager.active_monsters[entity_id] = new_monster
@@ -57,7 +61,7 @@ def execute_first_wave(tick, config, species_db):
 
 def spawn_from_dens(tick, config, species_db):
     """
-    Called every 50 ticks to spawn monsters from dens.
+    Called every `config.den_spawn_interval` ticks to spawn monsters from dens.
     For each Den, spawn 1 Level 1 entity of species_id on an adjacent valid tile (checking population limits).
     Subtracts 1 from the Den's charges.
     If charges reach 0, remove the Den.
@@ -75,11 +79,7 @@ def spawn_from_dens(tick, config, species_db):
         
         creator_id = den[DenData.CREATOR_ID] if len(den) > DenData.CREATOR_ID else None
         
-        # Den Collapse Check: If creator is dead, remove the den
-        if creator_id is not None and creator_id not in state_manager.active_monsters:
-            if config.log_population:
-                print(f"[Population] Den at ({x}, {y}) collapsed due to creator death.")
-            continue
+        # Dens persist independently of their creator's status.
         
         # Check population limits before spawning
         if len(state_manager.active_monsters) >= config.max_population:
@@ -121,9 +121,13 @@ def spawn_from_dens(tick, config, species_db):
                 0,    # age
                 0,    # movement_cooldown
                 0,    # has_active_den
-                20,   # scent_update_timer
+                0,    # scent_update_timer
                 0.0,  # scent_dx
-                0.0   # scent_dy
+                0.0,  # scent_dy
+                False, # is_bleeding
+                0,     # bleeding_ticks
+                False, # tracking_blood
+                False  # raided_den
             ]
             state_manager.active_monsters[entity_id] = new_monster
             

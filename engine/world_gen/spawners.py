@@ -11,13 +11,13 @@ def populate_dens(config: ConfigManager, biome_grid: np.ndarray, seed: int):
     rng = random.Random(seed + 100)
     dens = []
     
-    # Biome Mapping
+    # Biome Mapping (Weighted Probabilities)
     biome_species_map = {
-        TileType.PLAINS: [1, 3],       # Horned Rabbit, Slime
-        TileType.FOREST: [1, 2, 3, 5], # Horned Rabbit, Dire Wolf, Slime, Giant Spider
-        TileType.MOUNTAIN: [1, 2, 4],  # Horned Rabbit, Dire Wolf, Rock Boar
-        TileType.JUNGLE: [5],          # Giant Spider
-        TileType.DESERT: [7, 6]        # Dune Hopper, Sand Scorpion
+        TileType.PLAINS: {1: 60, 4: 25, 2: 15},       # Horned Rabbit, Rock Boar, Dire Wolf
+        TileType.FOREST: {1: 60, 4: 25, 2: 15},       # Horned Rabbit, Rock Boar, Dire Wolf
+        TileType.MOUNTAIN: {4: 80, 2: 20},            # Rock Boar, Dire Wolf
+        TileType.JUNGLE: {8: 80, 5: 20},              # Emerald Macaque, Giant Spider
+        TileType.DESERT: {7: 80, 6: 20}               # Dune Hopper, Sand Scorpion
     }
     
     height, width = biome_grid.shape
@@ -27,7 +27,7 @@ def populate_dens(config: ConfigManager, biome_grid: np.ndarray, seed: int):
     y_grid, x_grid = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
     radial_mask = (y_grid - cy)**2 + (x_grid - cx)**2 <= 75625
     
-    for biome, species_list in biome_species_map.items():
+    for biome, species_weights in biome_species_map.items():
         if not is_walkable(biome):
             continue
             
@@ -43,9 +43,16 @@ def populate_dens(config: ConfigManager, biome_grid: np.ndarray, seed: int):
         selected_indices = rng.sample(range(len(coords)), num_to_place)
         selected_coords = coords[selected_indices]
         
-        # Distribute species evenly among the selected coords for this biome
+        # Filter out deactivated species
+        filtered_weights = {k: v for k, v in species_weights.items() if str(k) in config.active_species}
+        if not filtered_weights:
+            continue
+            
+        population = list(filtered_weights.keys())
+        weights = list(filtered_weights.values())
+        
         for i, (y, x) in enumerate(selected_coords):
-            species_id = species_list[i % len(species_list)]
+            species_id = rng.choices(population, weights=weights, k=1)[0]
             dens.append([int(x), int(y), species_id, config.den_charges, None])
             
     if config.log_world_state:

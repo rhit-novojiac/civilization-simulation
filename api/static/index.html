@@ -600,6 +600,7 @@
         let dens = [];
         let baseSeed = null;
         let currentTick = 0;
+        let spawnedSpecies = new Set();
 
         // Visibility toggles
         let hiddenEntities = new Set();
@@ -957,7 +958,9 @@
             
             // 4. Draw Active Monsters
             if (activeMonsters) {
-                Object.values(activeMonsters).forEach(monster => {
+                Object.values(activeMonsters)
+                    .sort((a, b) => b[3] - a[3]) // Sort by HP descending so lowest HP draws last (on top)
+                    .forEach(monster => {
                     // Array format: [species_id, x, y, hp_percent, level, current_xp, biomass]
                     const spId = monster[0];
                     const mx = monster[1];
@@ -998,24 +1001,21 @@
             try {
                 const res = await fetch('/api/species');
                 speciesDb = await res.json();
-                
-                // Build legend
-                const legend = document.getElementById('chart-legend');
-                legend.innerHTML = '';
-                
-                for (const [id, spec] of Object.entries(speciesDb)) {
-                    const color = speciesColors[id] || '#ffffff';
-                    
-                    // Add legend item
-                    const item = document.createElement('div');
-                    item.className = 'legend-item';
-                    item.innerHTML = `<span class="legend-dot" style="background:${color};"></span><span>${spec.name}</span>`;
-                    legend.appendChild(item);
-                }
-                
-                updateSpeciesListHtml();
             } catch (err) {
                 console.error("Error fetching species database:", err);
+            }
+        }
+
+        function updateLegendHtml() {
+            const legend = document.getElementById('chart-legend');
+            legend.innerHTML = '';
+            for (const [id, spec] of Object.entries(speciesDb)) {
+                if (!spawnedSpecies.has(id)) continue;
+                const color = speciesColors[id] || '#ffffff';
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.innerHTML = `<span class="legend-dot" style="background:${color};"></span><span>${spec.name}</span>`;
+                legend.appendChild(item);
             }
         }
 
@@ -1025,6 +1025,8 @@
             container.innerHTML = '';
             
             for (const [id, spec] of Object.entries(speciesDb)) {
+                if (!spawnedSpecies.has(id)) continue;
+                
                 const color = speciesColors[id] || '#ffffff';
                 const card = document.createElement('div');
                 card.className = 'species-card';
@@ -1150,6 +1152,19 @@
                 }
             });
             
+            // Check for newly spawned species
+            let newlySpawned = false;
+            for (const spId of Object.keys(speciesDb)) {
+                if ((counts[spId] > 0 || denCounts[spId] > 0) && !spawnedSpecies.has(spId)) {
+                    spawnedSpecies.add(spId);
+                    newlySpawned = true;
+                }
+            }
+            if (newlySpawned) {
+                updateLegendHtml();
+                updateSpeciesListHtml();
+            }
+
             // Save population state to delta log at this specific tick
             deltaHistory.set(currentTick, { ...counts, total: totalPop, totalDens: dens.length });
             
@@ -1289,6 +1304,7 @@
             
             // 1. Render Species Lines
             for (const spId of Object.keys(speciesDb)) {
+                if (!spawnedSpecies.has(spId)) continue;
                 cCtx.strokeStyle = speciesColors[spId] || '#ffffff';
                 cCtx.lineWidth = 1.5;
                 cCtx.beginPath();

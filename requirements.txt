@@ -3,3 +3,4 @@ torch
 pillow
 scipy
 matplotlib
+pytest
